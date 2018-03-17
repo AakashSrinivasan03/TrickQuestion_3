@@ -63,9 +63,9 @@ def main():
 	np.random.shuffle(train)
 	np.random.shuffle(val)
 
-	train_X = train[:,0:features]
+	train_X = train[:,0:features].reshape(28,28)
 	train_Y = train[:,features:]
-	val_X  = val[:,0:features]
+	val_X  = val[:,0:features].reshape(28,28)
 	val_Y  = val[:,features:]
 	#scalar=sklearn.preprocessing.StandardScaler()
 	#scalar=scalar.fit(train_X)
@@ -96,6 +96,13 @@ def main():
 		pickle.dump(W_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)	
 	with open(model_dir+'/b.pickle', 'wb') as handle:
 		pickle.dump(b_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+model()
+sess=tf.Session()
+for i in range(0,int(train_X.shape[2]/args.batch_size)):
+	X_batch=train_X[:,:,i*args.batch_size:np.max((i+1)*args.batch_size,55000)]
+	y_batch=train_X[i*args.batch_size:np.max((i+1)*args.batch_size,55000)]
+	sess.run()
+
 
 	
 MAX_EPOCHS = 25
@@ -103,42 +110,47 @@ alpha = 0.0001
 gamma = 0.001
 eps = 0.000001
 
+def model():
+	X=tf.placeholder(tf.float32)
+	y=tf.placeholder(tf.float32)
+	conv1 = tf.layers.conv2d(X, 64, 3, 1, 'same', activation=tf.nn.relu)    
+	pool1 = tf.layers.max_pooling2d(conv1, 2, 2) 
 
-conv1 = tf.layers.conv2d(X, 64, 3, 1, 'same', activation=tf.nn.relu)    
-pool1 = tf.layers.max_pooling2d(conv1, 2, 2) 
+	conv2 = tf.layers.conv2d(pool1, 128, 3, 1, 'same', activation=tf.nn.relu)    
+	pool2 = tf.layers.max_pooling2d(conv2, 2, 2) 
 
-conv2 = tf.layers.conv2d(pool1, 128, 3, 1, 'same', activation=tf.nn.relu)    
-pool2 = tf.layers.max_pooling2d(conv2, 2, 2) 
+	conv3 = tf.layers.conv2d(pool2, 256, 3, 1, 'same', activation=tf.nn.relu)    
+	conv4 = tf.layers.conv2d(conv3, 256, 3, 1, 'same', activation=tf.nn.relu)    
 
-conv3 = tf.layers.conv2d(pool2, 256, 3, 1, 'same', activation=tf.nn.relu)    
-conv4 = tf.layers.conv2d(conv3, 256, 3, 1, 'same', activation=tf.nn.relu)    
-
-pool3 = tf.layers.max_pooling2d(conv4, 2, 2) 
-
-
-flat = tf.reshape(pool2, [-1, 7*7*32])      
-fc1 = tf.layers.dense(flat, 1024)
-fc2 = tf.layers.dense(fc1, 1024)
-
-fc3 = tf.layers.dense(fc2, 10)
-tf.nn.batch_normalization(fc3, )
-y_pred = tf.nn.softmax(fc3)
+	pool3 = tf.layers.max_pooling2d(conv4, 2, 2) 
 
 
+	flat = tf.reshape(pool2, [-1, 7*7*32])      
+	fc1 = tf.layers.dense(flat, 1024)
+	fc2 = tf.layers.dense(fc1, 1024)
 
-
-
-cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=y_pred,
-                                                        labels=y_true)
-loss = tf.reduce_mean(cross_entropy)
-optimizer = tf.train.AdamOptimizer(learning_rate=0.001).minimize(loss)
-correct_prediction = tf.equal(y_pred_cls, y_true_cls)
-accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+	fc3 = tf.layers.dense(fc2, 10)
+	tf.nn.batch_normalization(fc3, )
+	y_pred = tf.nn.softmax(fc3)
 
 
 
-session = tf.Session()
-train_batch_size = batch_size
+
+
+	cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=y_pred,
+	                                                        labels=y_true)
+	loss = tf.reduce_mean(cross_entropy)
+	optimizer = tf.train.AdamOptimizer(learning_rate=0.001).minimize(loss)
+	correct_prediction = tf.equal(y_pred_cls, y_true_cls)
+	accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+
+
+
+	#session = tf.Session()
+	train_batch_size = args.batch_size
+
+
+
 
 
 
