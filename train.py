@@ -103,7 +103,7 @@ def main():
 	with open(model_dir+'/b.pickle', 'wb') as handle:
 		pickle.dump(b_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)'''
 	X=tf.placeholder(tf.float32,shape=(None, 28,28,1))
-	y=tf.placeholder(tf.float32,shape=(None))
+	y=tf.placeholder(tf.float32,shape=(None,10))
 	conv1 = tf.layers.conv2d(X, 64, 3, (1, 1), 'same', activation=tf.nn.relu)    
 	pool1 = tf.layers.max_pooling2d(conv1, 2, 2) 
 
@@ -122,9 +122,9 @@ def main():
 	fc2 = tf.layers.dense(fc1, 1024)
 
 	fc3 = tf.layers.dense(fc2, 10)
-	fc3_bn=tf.layers.batch_normalization(fc3,axis=1)
+	#fc3_bn=tf.layers.batch_normalization(fc3,axis=1)
 	#tf.nn.batch_normalization(fc3, )
-	y_pred = tf.nn.softmax(fc3_bn)
+	y_pred = tf.nn.softmax(fc3)
 
 
 
@@ -133,9 +133,10 @@ def main():
 	cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=y_pred,
 	                                                        labels=y)
 	loss = tf.reduce_mean(cross_entropy)
-	optimizer = tf.train.AdamOptimizer(learning_rate=0.1).minimize(loss)
-	correct_prediction = tf.equal(y_pred, y)
-	accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+	optimizer = tf.train.AdamOptimizer(learning_rate=0.0001).minimize(loss)
+	_,accuracy=tf.metrics.accuracy(tf.argmax(y,axis=1),tf.argmax(y_pred,axis=1))
+	#correct_prediction = tf.equal(y_pred, y)
+	#accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
 
 
@@ -143,15 +144,21 @@ def main():
 	#train_batch_size = args.batch_size
 	#args.batch_size=100
 	sess=tf.Session()
-	sess.run(tf.global_variables_initializer())
-
+	init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
+	sess.run(init)
+	#sess.run(tf.global_variables_initializer())
+	#print(sess.run(tf.trainable_variables()))
 	for epochs in range(0,MAX_EPOCHS):
 		for i in range(0,int(train_X.shape[0]/args.batch_size)):
 			X_batch=train_X[i*args.batch_size:np.minimum((i+1)*args.batch_size,55000),:,:]
-			y_batch=train_Y[i*args.batch_size:np.minimum((i+1)*args.batch_size,55000)]
+			#print(train_Y.shape)
+			y_batch=train_Y[i*args.batch_size:np.minimum((i+1)*args.batch_size,55000),:]
+			#print(sess.run(tf.shape(np.expand_dims(X_batch,3))))
+			#print(sess.run([tf.argmax(y_pred,axis=1),tf.argmax(y,axis=1)],feed_dict={X:np.expand_dims(X_batch,3),y:y_batch}))
+			#print(sess.run([tf.argmax(fc3,axis=1),tf.argmax(y,axis=1)],feed_dict={X:np.expand_dims(X_batch,3),y:y_batch}))
 			_,val=sess.run([optimizer,accuracy],feed_dict={X:np.expand_dims(X_batch,3),y:y_batch})
 			print(val)
-		print(sess.run(accuracy,feed_dict={X:np.expand_dims(val_X,3),y:val_Y}))
+			#print(sess.run(accuracy,feed_dict={X:np.expand_dims(val_X,3),y:val_Y}))
 			
 
 
@@ -174,14 +181,14 @@ def main():
 
 def parse_arguments():
 	parser = argparse.ArgumentParser()
-	parser.add_argument("--lr", default=0.05, type=float, help="initial learning rate for gradient descent based algorithms")
+	parser.add_argument("--lr", default=5, type=float, help="initial learning rate for gradient descent based algorithms")
 	parser.add_argument("--momentum" ,default=0.9, type=float, help="momentum to be used by momentum based algorithms")
 	parser.add_argument("--num_hidden",default=1,type=int, help="number of hidden layers - this does not include the 784 dimensional input layer and the 10 dimensional output layer")
 	parser.add_argument("--sizes",default='256' ,type=str, help="a comma separated list for the size of each hidden layer")
 	parser.add_argument("--activation",default='sigmoid',type=str, help="the choice of activation function - valid values are tanh/sigmoid")
 	parser.add_argument("--loss",default='ce' ,type=str, help="possible choices are squared error[sq] or cross entropy loss[ce]")
 	parser.add_argument("--opt", default='adam',type=str, help="the optimization algorithm to be used: gd, momentum, nag, adam - you will be implementing the mini-batch version of these algorithms")
-	parser.add_argument("--batch_size",default=1000 ,type=int, help="the batch size to be used - valid values are 1 and multiples of 5")
+	parser.add_argument("--batch_size",default=100 ,type=int, help="the batch size to be used - valid values are 1 and multiples of 5")
 	parser.add_argument("--anneal" ,default=True,type=bool,help="if true the algorithm should halve the learning rate if at any epoch the validation loss decreases and then restart that epoch")
 	parser.add_argument("--save_dir",default='Save_Dir',type=str, help="the directory in which the pickled model should be saved - by model we mean all the weights and biases of the network")
 	parser.add_argument("--expt_dir",default='Expt_Dir' ,type=str, help= "the directory in which the log files will be saved - see below for a detailed description of which log files should be generated")
