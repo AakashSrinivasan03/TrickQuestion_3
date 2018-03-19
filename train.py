@@ -122,8 +122,9 @@ def main():
 	fc2 = tf.layers.dense(fc1, 1024)
 
 	fc3 = tf.layers.dense(fc2, 10)
+	fc3_bn=tf.layers.batch_normalization(fc3,axis=1)
 	#tf.nn.batch_normalization(fc3, )
-	y_pred = tf.nn.softmax(fc3)
+	y_pred = tf.nn.softmax(fc3_bn)
 
 
 
@@ -143,13 +144,14 @@ def main():
 	#args.batch_size=100
 	sess=tf.Session()
 	sess.run(tf.global_variables_initializer())
-	for epochs in range(0,1):
+
+	for epochs in range(0,MAX_EPOCHS):
 		for i in range(0,int(train_X.shape[0]/args.batch_size)):
 			X_batch=train_X[i*args.batch_size:np.minimum((i+1)*args.batch_size,55000),:,:]
 			y_batch=train_Y[i*args.batch_size:np.minimum((i+1)*args.batch_size,55000)]
 			_,val=sess.run([optimizer,accuracy],feed_dict={X:np.expand_dims(X_batch,3),y:y_batch})
 			print(val)
-			print(sess.run(accuracy,feed_dict={X:np.expand_dims(val_X,3),y:val_Y}))
+		print(sess.run(accuracy,feed_dict={X:np.expand_dims(val_X,3),y:val_Y}))
 			
 
 
@@ -179,7 +181,7 @@ def parse_arguments():
 	parser.add_argument("--activation",default='sigmoid',type=str, help="the choice of activation function - valid values are tanh/sigmoid")
 	parser.add_argument("--loss",default='ce' ,type=str, help="possible choices are squared error[sq] or cross entropy loss[ce]")
 	parser.add_argument("--opt", default='adam',type=str, help="the optimization algorithm to be used: gd, momentum, nag, adam - you will be implementing the mini-batch version of these algorithms")
-	parser.add_argument("--batch_size",default=10000 ,type=int, help="the batch size to be used - valid values are 1 and multiples of 5")
+	parser.add_argument("--batch_size",default=1000 ,type=int, help="the batch size to be used - valid values are 1 and multiples of 5")
 	parser.add_argument("--anneal" ,default=True,type=bool,help="if true the algorithm should halve the learning rate if at any epoch the validation loss decreases and then restart that epoch")
 	parser.add_argument("--save_dir",default='Save_Dir',type=str, help="the directory in which the pickled model should be saved - by model we mean all the weights and biases of the network")
 	parser.add_argument("--expt_dir",default='Expt_Dir' ,type=str, help= "the directory in which the log files will be saved - see below for a detailed description of which log files should be generated")
