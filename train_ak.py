@@ -47,7 +47,7 @@ def main():
 	m_val  = val_X.shape[0]
 	features = 784
 	classes = 10
-	MAX_EPOCHS = 25
+	MAX_EPOCHS = 5000
 	alpha = 0.0001
 	gamma = 0.001
 	eps = 0.000001
@@ -76,6 +76,10 @@ def main():
 	
 
 	test_prediction=[]
+	l = []
+	train_loss = []
+	val_loss = []
+
 	
 	'''if (args.pretrain):
 		with open('model/W.pickle', 'rb') as handle:
@@ -99,29 +103,26 @@ def main():
 		y=tf.placeholder(tf.float32,shape=(None,10))
 		mode_placeholder = tf.placeholder(tf.bool)
 	with tf.device('/gpu:0'):	
-		conv1 = tf.layers.conv2d(X, 64, kernel_size=[3, 3], strides=(1, 1), padding='same', activation=tf.nn.relu)    
+		conv1 = tf.layers.conv2d(X, 64, 3, (1, 1), 'same', activation=tf.nn.relu)    
 		pool1 = tf.layers.max_pooling2d(conv1, 2, 2) 
 
-		conv2 = tf.layers.conv2d(pool1, 128, kernel_size=[3, 3], strides=1, padding='same', activation=tf.nn.relu)    
+		conv2 = tf.layers.conv2d(pool1, 128, 3, 1, 'same', activation=tf.nn.relu)    
 		pool2 = tf.layers.max_pooling2d(conv2, 2, 2) 
 
-		conv3 = tf.layers.conv2d(pool2, 256, kernel_size=[3, 3], strides=1, padding='same', activation=tf.nn.relu)    
-		conv4 = tf.layers.conv2d(conv3, 256, kernel_size=[3, 3], strides=1, padding='same', activation=tf.nn.relu)    
+		conv3 = tf.layers.conv2d(pool2, 256, 3, 1, 'same', activation=tf.nn.relu)    
+		conv4 = tf.layers.conv2d(conv3, 256, 3, 1, 'same', activation=tf.nn.relu)    
 
 
 		pool3 = tf.layers.max_pooling2d(conv4, 2, 2) 
 		op=tf.shape(pool3)
 
 		flat = tf.reshape(pool3, [tf.shape(X)[0],256*3*3 ])      
-		fc1 = tf.layers.dense(flat, 1024,activation=tf.nn.relu)
-		fc2 = tf.layers.dense(fc1, 1024,activation=tf.nn.relu)
+		fc1 = tf.layers.dense(flat, 1024)
+		fc2 = tf.layers.dense(fc1, 1024)
 
 		fc3 = tf.layers.dense(fc2, 10)
 		bn = tf.layers.batch_normalization(fc3, axis=1, center=True, scale=False, training=mode_placeholder)
-
-		##fc3_bn=tf.layers.batch_normalization(fc3,axis=1)
-		#tf.nn.batch_normalization(fc3, )
-		y_pred = tf.nn.softmax(fc3)
+		y_pred = tf.nn.softmax(bn)
 
 
 
@@ -173,25 +174,37 @@ def main():
 				#print(sess.run([tf.argmax(fc3,axis=1),tf.argmax(y,axis=1)],feed_dict={X:np.expand_dims(X_batch,3),y:y_batch}))
 				#print("aaa",sess.run(op,feed_dict={X:np.expand_dims(X_batch,3),y:y_batch}))
 				##print(sess.run([tf.shape(logits),tf.shape(y)],feed_dict={X:np.expand_dims(X_batch,3),y:y_batch}))
-				_,val=sess.run([optimizer,accuracy],feed_dict={X:np.expand_dims(X_batch,3),y:y_batch, mode_placeholder:True})
-				print(steps,":",val)
+				_,acc,loss_t=sess.run([optimizer,accuracy,loss],feed_dict={X:np.expand_dims(X_batch,3),y:y_batch, mode_placeholder:True})
+				print(steps,":",acc)
 				steps += 1
+				train_loss.append(loss_t)
 				##print(val)
 			count += 1
+
 			if(count<=5):
-				validation_list.append(sess.run(accuracy,feed_dict={X:np.expand_dims(val_X,3),y:val_Y, mode_placeholder:False}))
+				acc, loss_v = sess.run([accuracy,loss],feed_dict={X:np.expand_dims(val_X,3),y:val_Y, mode_placeholder:False})
+				validation_list.append(acc)
+				val_loss.append(loss_v)
 			else:
-				curr_val_1=sess.run(accuracy,feed_dict={X:np.expand_dims(val_X,3),y:val_Y})
-				curr_val_2=sess.run(accuracy,feed_dict={X:np.expand_dims(val_X,3),y:val_Y})
-				curr_val=curr_val_1+curr_val_2
+				loss_v,curr_val=sess.run([loss, accuracy],feed_dict={X:np.expand_dims(val_X,3),y:val_Y, mode_placeholder:False})
+				val_loss.append(loss_v)
 				print("VAL_LOSS",curr_val)	
 				if(curr_val<min(validation_list) and args.early_stop):
-					save_path = saver.save(sess, "/output/model.ckpt")
+					save_path = saver.save(sess, "/output/model_final.ckpt")
 					exit()
 				validation_list[count%5]=curr_val	
 
+			if(count%100==0):
+				train_arr = np.array(train_loss)
+				val_arr = np.array(val_loss)
+				dict = {}
+				dict["train_arr"]=train_arr
+				dict["val_arr"]=val_arr
+				np.save("/output/losses_"+str(count)+".npy", dict)
+
+
 			
-			if(count%25==0):
+			if(count%50==0):
 				test_prediction=sess.run([tf.argmax(y_pred,axis=1)],feed_dict={X:np.expand_dims(test_X,3), mode_placeholder:False})[0]
 				test_id = np.array([i for i in range(len(test_prediction))])
 				print (test_prediction)
@@ -201,7 +214,7 @@ def main():
 				sub = pd.DataFrame(data=test_prediction, columns=columns)
 				sub['id'] = test_id
 				sub = sub[['id','label']]
-				save_path = saver.save(sess, "/output/model.ckpt")
+				save_path = saver.save(sess, "/output/model"+str(count)+".ckpt")
 
 
 
@@ -209,11 +222,11 @@ def main():
 				sub.to_csv("/output/sub_30_"+str(count)+".csv", index=False)
 
 		
-	MAX_EPOCHS = 25
+	MAX_EPOCHS = 5000
 	alpha = 0.0001
 	gamma = 0.001
 	eps = 0.000001
-	save_path = saver.save(sess, "/output/model.ckpt")
+	save_path = saver.save(sess, "/output/model"+str(count)+".ckpt")
 
 
 
