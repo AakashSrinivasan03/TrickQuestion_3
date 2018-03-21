@@ -1,5 +1,3 @@
-
-
 # -*- coding: utf-8 -*-
 import pickle
 import argparse
@@ -15,18 +13,8 @@ import sklearn
 import sklearn.metrics
 import sklearn.preprocessing
 import tensorflow as tf
-def main():
-	global args 
-	args = parse_arguments()
-	subdir = datetime.strftime(datetime.now(), '%Y%m%d-%H%M%S')
-	log_dir = os.path.join(args.expt_dir, subdir)
-	if not os.path.isdir(log_dir):  # Create the log directory if it doesn't exist
-		os.makedirs(log_dir)
-	model_dir = os.path.join(args.save_dir, subdir)
-	if not os.path.isdir(model_dir):  # Create the model directory if it doesn't exist	os.makedirs(model_dir)
-		os.makedirs(model_dir)
 
-	#read data
+def get_data(args):
 	data_train = pd.read_csv(args.train).iloc[:,:].as_matrix()
 	train_X = data_train[:,1:-1]
 
@@ -73,28 +61,30 @@ def main():
 	train_Y = train[:,features:]
 	val_X  = val[:,0:features].reshape(val.shape[0],28,28)
 	val_Y  = val[:,features:]
-	print(train_X.shape)
+
+	return train_X,train_Y,val_X,val_Y,test_X
+
+
+
+def main():
+	global args 
+	args = parse_arguments()
+	subdir = datetime.strftime(datetime.now(), '%Y%m%d-%H%M%S')
+	log_dir = os.path.join(args.expt_dir, subdir)
+	if not os.path.isdir(log_dir):  # Create the log directory if it doesn't exist
+		os.makedirs(log_dir)
+	model_dir = os.path.join(args.save_dir, subdir)
+	if not os.path.isdir(model_dir):  # Create the model directory if it doesn't exist	os.makedirs(model_dir)
+		os.makedirs(model_dir)
+
+	#read data
+	train_X,train_Y,val_X,val_Y,test_X = get_data(args)
+
 	
 
 	test_prediction=[]
 	
-	'''if (args.pretrain):
-		with open('model/W.pickle', 'rb') as handle:
-			W_dict = pickle.load(handle)
-		with open('model/b.pickle', 'rb') as handle:
-    			b_dict = pickle.load(handle)
-	else:
-		W_dict,b_dict=minibatch_gradient_descent(W_dict,b_dict,args.num_hidden,train_X,train_Y,args.batch_size,val_X,val_Y)		
-'''
 
-
-
-
-	#sub.to_csv("sub_30.csv", index=False)
-	'''with open(model_dir+'/W.pickle', 'wb') as handle:
-		pickle.dump(W_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)	
-	with open(model_dir+'/b.pickle', 'wb') as handle:
-		pickle.dump(b_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)'''
 	with tf.device('/gpu:0'):	
 		X=tf.placeholder(tf.float32,shape=(None, 28,28,1))
 		y=tf.placeholder(tf.float32,shape=(None,10))
@@ -116,10 +106,8 @@ def main():
 		fc2 = tf.layers.dense(fc1, 1024)
 
 		fc3 = tf.layers.dense(fc2, 10)
-		##fc3_bn=tf.layers.batch_normalization(fc3,axis=1)
-		#tf.nn.batch_normalization(fc3, )
-		y_pred = tf.nn.softmax(fc3)
-
+		bn = tf.layers.batch_normalization(fc3, axis=1, center=True, scale=False, training=(mode == tf.estimator.ModeKeys.TRAIN))
+		y_pred = tf.nn.softmax(bn)
 
 
 
