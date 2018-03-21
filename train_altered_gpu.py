@@ -1,3 +1,5 @@
+
+
 # -*- coding: utf-8 -*-
 import pickle
 import argparse
@@ -13,8 +15,18 @@ import sklearn
 import sklearn.metrics
 import sklearn.preprocessing
 import tensorflow as tf
+def main():
+	global args 
+	args = parse_arguments()
+	subdir = datetime.strftime(datetime.now(), '%Y%m%d-%H%M%S')
+	log_dir = os.path.join(args.expt_dir, subdir)
+	if not os.path.isdir(log_dir):  # Create the log directory if it doesn't exist
+		os.makedirs(log_dir)
+	model_dir = os.path.join(args.save_dir, subdir)
+	if not os.path.isdir(model_dir):  # Create the model directory if it doesn't exist	os.makedirs(model_dir)
+		os.makedirs(model_dir)
 
-def get_data(args):
+	#read data
 	data_train = pd.read_csv(args.train).iloc[:,:].as_matrix()
 	train_X = data_train[:,1:-1]
 
@@ -61,53 +73,54 @@ def get_data(args):
 	train_Y = train[:,features:]
 	val_X  = val[:,0:features].reshape(val.shape[0],28,28)
 	val_Y  = val[:,features:]
-
-	return train_X,train_Y,val_X,val_Y,test_X
-
-
-
-def main():
-	global args 
-	args = parse_arguments()
-	subdir = datetime.strftime(datetime.now(), '%Y%m%d-%H%M%S')
-	log_dir = os.path.join(args.expt_dir, subdir)
-	if not os.path.isdir(log_dir):  # Create the log directory if it doesn't exist
-		os.makedirs(log_dir)
-	model_dir = os.path.join(args.save_dir, subdir)
-	if not os.path.isdir(model_dir):  # Create the model directory if it doesn't exist	os.makedirs(model_dir)
-		os.makedirs(model_dir)
-
-	#read data
-	train_X,train_Y,val_X,val_Y,test_X = get_data(args)
-
+	print(train_X.shape)
 	
 
 	test_prediction=[]
 	
+	'''if (args.pretrain):
+		with open('model/W.pickle', 'rb') as handle:
+			W_dict = pickle.load(handle)
+		with open('model/b.pickle', 'rb') as handle:
+    			b_dict = pickle.load(handle)
+	else:
+		W_dict,b_dict=minibatch_gradient_descent(W_dict,b_dict,args.num_hidden,train_X,train_Y,args.batch_size,val_X,val_Y)		
+'''
 
-	with tf.device('/gpu:0'):	
+
+
+
+	#sub.to_csv("sub_30.csv", index=False)
+	'''with open(model_dir+'/W.pickle', 'wb') as handle:
+		pickle.dump(W_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)	
+	with open(model_dir+'/b.pickle', 'wb') as handle:
+		pickle.dump(b_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)'''
+	with tf.device('/cpu:0'):	
 		X=tf.placeholder(tf.float32,shape=(None, 28,28,1))
 		y=tf.placeholder(tf.float32,shape=(None,10))
-		conv1 = tf.layers.conv2d(X, 64, 3, (1, 1), 'same', activation=tf.nn.relu)    
+	with tf.device('/gpu:0'):	
+		conv1 = tf.layers.conv2d(X, 64, kernel_size=[3, 3], strides=(1, 1), padding='same', activation=tf.nn.relu)    
 		pool1 = tf.layers.max_pooling2d(conv1, 2, 2) 
 
-		conv2 = tf.layers.conv2d(pool1, 128, 3, 1, 'same', activation=tf.nn.relu)    
+		conv2 = tf.layers.conv2d(pool1, 128, kernel_size=[3, 3], strides=1, padding='same', activation=tf.nn.relu)    
 		pool2 = tf.layers.max_pooling2d(conv2, 2, 2) 
 
-		conv3 = tf.layers.conv2d(pool2, 256, 3, 1, 'same', activation=tf.nn.relu)    
-		conv4 = tf.layers.conv2d(conv3, 256, 3, 1, 'same', activation=tf.nn.relu)    
+		conv3 = tf.layers.conv2d(pool2, 256, kernel_size=[3, 3], strides=1, padding='same', activation=tf.nn.relu)    
+		conv4 = tf.layers.conv2d(conv3, 256, kernel_size=[3, 3], strides=1, padding='same', activation=tf.nn.relu)    
 
 
 		pool3 = tf.layers.max_pooling2d(conv4, 2, 2) 
 		op=tf.shape(pool3)
 
 		flat = tf.reshape(pool3, [tf.shape(X)[0],256*3*3 ])      
-		fc1 = tf.layers.dense(flat, 1024)
-		fc2 = tf.layers.dense(fc1, 1024)
+		fc1 = tf.layers.dense(flat, 1024,activation=tf.nn.relu)
+		fc2 = tf.layers.dense(fc1, 1024,activation=tf.nn.relu)
 
 		fc3 = tf.layers.dense(fc2, 10)
-		bn = tf.layers.batch_normalization(fc3, axis=1, center=True, scale=False, training=(mode == tf.estimator.ModeKeys.TRAIN))
-		y_pred = tf.nn.softmax(bn)
+		##fc3_bn=tf.layers.batch_normalization(fc3,axis=1)
+		#tf.nn.batch_normalization(fc3, )
+		y_pred = tf.nn.softmax(fc3)
+
 
 
 
@@ -144,8 +157,9 @@ def main():
 		
 		#sess.run(tf.global_variables_initializer())
 		#print(sess.run(tf.trainable_variables()))
-	with tf.device('/gpu:0'):	
+	with tf.device('/cpu:0'):	
 		steps=0
+		count=0
 		validation_list=[]
 		for epochs in range(0,MAX_EPOCHS):
 			for i in range(0,int(train_X.shape[0]/args.batch_size)):
@@ -165,7 +179,9 @@ def main():
 			if(count<=5):
 				validation_list.append(sess.run(accuracy,feed_dict={X:np.expand_dims(val_X,3),y:val_Y}))
 			else:
-				curr_val=sess.run(accuracy,feed_dict={X:np.expand_dims(val_X,3),y:val_Y})
+				curr_val_1=sess.run(accuracy,feed_dict={X:np.expand_dims(val_X[:2500,:,:],3),y:val_Y[:2500,:,:]})
+				curr_val_2=sess.run(accuracy,feed_dict={X:np.expand_dims(val_X[2500,:,:,:],3),y:val_Y[2500:,:,:]})
+				curr_val=curr_val_1+curr_val_2
 				print("VAL_LOSS",curr_val)	
 				if(curr_val<min(validation_list) and args.early_stop):
 					save_path = saver.save(sess, "model.ckpt")
@@ -210,8 +226,8 @@ def parse_arguments():
 	parser.add_argument("--lr", default=0.005, type=float, help="initial learning rate for gradient descent based algorithms")
 	parser.add_argument("--init", default=1, type=float, help="initialisation for weights 1-for Xavier,2-He")
 	parser.add_argument("--early_stop", default=False, type=bool, help="Early stopping")
-	parser.add_argument("--opt", default='adam',type=str, help="the optimization algorithm to be used: gd, momentum, nag, adam - you will be implementing the mini-batch version of these algorithms")
-	parser.add_argument("--batch_size",default=1000 ,type=int, help="the batch size to be used - valid values are 1 and multiples of 5")
+	parser.add_argument("--opt", default='gd',type=str, help="the optimization algorithm to be used: gd, momentum, nag, adam - you will be implementing the mini-batch version of these algorithms")
+	parser.add_argument("--batch_size",default=50 ,type=int, help="the batch size to be used - valid values are 1 and multiples of 5")
 	
 	parser.add_argument("--save_dir",default='Save_Dir',type=str, help="the directory in which the pickled model should be saved - by model we mean all the weights and biases of the network")
 	parser.add_argument("--expt_dir",default='Expt_Dir' ,type=str, help= "the directory in which the log files will be saved - see below for a detailed description of which log files should be generated")
